@@ -857,4 +857,19 @@ spec:
       containers:
       - image: k8s.gcr.io/fluentd-elasticsearch:1.20
         name: fluentd-elasticsearch
+        
+ //////////////////////////////////ConfigMap//////////
+ kubectl create configmap name --from-literal=key=value
+ ****call it in pod:
+ envFrom:
+   -configMapRef:
+      name:...
+      
+      //////////////////////user requests certificate/////////////
+      openssl genrsa -out manel.key 2048   //key
+      openssl req -new -key manel.key -subj "|CN=manel" -out manel.csr ///you can use yaml file
+      
+      /////////////////////admin ////////////
+      kubectl get csr
+      kubectl certificate approve csrName
 
