@@ -30,7 +30,6 @@ ssh node01
 ///repeat all steps
 apt update 
 apt install kubeadm=1.19.0-00
-kubeadm upgrade apply v1.19.0-00
 kubeadm upgrade node
 apt install kubelet=1.19.0-00 
 sudo systemctl daemon-reload
