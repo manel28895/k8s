@@ -145,7 +145,7 @@ metadata:
   name: webapp-pod
   namespace: default
 spec:
-  nodeSelector:
+  nodeSelector:  ///or///nodeName: kube-01
     accelerator: nvidia-tesla-p100
   containers:
   - image: kodekloud/simple-webapp-mysql
