@@ -745,6 +745,7 @@ kind: PersistentVolume
 metadata:
   name: pv-log
 spec:
+  storageClassName: local-storage 
   accessModes:
     - ReadWriteMany
   capacity:
