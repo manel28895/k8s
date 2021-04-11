@@ -11,6 +11,7 @@ ETCDCTL_API=3 etcdctl  --data-dir /var/lib/etcd-from-backup \
 // then you shoul go to etcd.yaml and change the volume path data to /var/lib/etcd-from-backup
 
 *****************************Upgrade*********************
+kubeadm upgrade plan // check latest version
 1/kubectl drain master --ignore-deamonsets
 2/ apt update 
 apt install kubeadm=1.19.0-00
