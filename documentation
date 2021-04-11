@@ -10,6 +10,9 @@ ETCDCTL_API=3 etcdctl  --data-dir /var/lib/etcd-from-backup \
      snapshot restore /opt/snapshot-pre-boot.db
 // then you shoul go to etcd.yaml and change the volume path data to /var/lib/etcd-from-backup
 
+/////////////////////service account///////////
+kubectl create serviceaccount example-sa --namespace mynamespace
+
 *****************************Upgrade*********************
 kubeadm upgrade plan // check latest version
 1/kubectl drain master --ignore-deamonsets
