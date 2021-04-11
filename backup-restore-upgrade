@@ -50,3 +50,808 @@ kubectl drain nodeName --ignore-deamonsets  /////when it says make unscheduble
 kubectl cordon nodeName //when it says mark it unscheduble but do not remove any apps running onit 
 kubectl uncordon nodeName
 
+*******************************************Ingres*******************
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/nginx-0.30.0/deploy/static/mandatory.yaml
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/nginx-0.30.0/deploy/static/provider/cloud-generic.yaml
+ingress.yaml:
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+    name: frontend-ingress
+spec:
+    rules:
+    - http:
+        paths:
+        - path: /api
+          backend:
+            serviceName: back-service
+            servicePort: 8080
+        - path: /
+          backend:
+            serviceName: front-service
+            servicePort: 80
+///////////////////////////////////////////
+ubuntu2004 config --default-user root     "when you forget yoour pwd" : do in on cmd
+//////////////
+kubectl config use-context <cluster> to switch between clusters
+///////////////////////exam tips //////////////
+
+During the exam, you are allowed to use one chrome tab open on the kubernetes docs website (https://kubernetes.io/docs/). Best to have bookmarks on different topics prepared ahead of time.
+Decide which bash aliases you will use. These are my suggestions:
+
+
+alias k=kubectl
+alias kg='kubectl get'
+alias kd='kubectl delete -f'
+alias ka='kubectl apply -f'
+alias ke='kubectl explain'
+
+kubectl cluster-info
+
+******Get accustomed to imperative commands when you can. They will save you a lot of time.
+kubectl run nginx-pod --image=nginx -l tier:msg,env:prod --command sleep 1000
+
+kubectl create deployment nginx-deploy --image=nginx --replicas=2
+
+kubectl expose deploy nginx-deploy --name nginx_svc --port 80 --type NodePort
+
+kubectl scale deploy app --replicas=2
+
+kubectl create role foo --verb=get,list,watch --resource=pods,deploy
+
+kubectl label nodes nodename key=value
+
+///////////create taint on node//////////
+kubectl taint node nodename key=val:taintEffect
+
+//////////remove taint/////////
+kubectl taint node nodename nameOfTaint untaint
+***********Use flags to create yamls from running objects or imperative command:
+kubectl run nginx-pod --image=nginx --dry-run=client --o yaml > pod.yaml
+
+kubect get pod nginx-pod -oyaml > pod.yaml 
+#Remove unnecessary fields from the yaml file
+
+******kubectl edit is a good command to change running instances. If you edited an immutable field and saved it, the instance won’t change
+ but the yaml file will be saved at /tmp/kubectl***, look for it.
+
+*****Know how to validate your answers; here are a few examples:
+
+network policies — use nc command from another pod
+RBAC - use the --as flag, e.g., kubectl get pods --as john
+services - use nc from another pod
+Create temporary pod - kubectl run nginx-pod --image nginx --rm --it -- bash  #Creates temp pods with bash terminal, deletes after the 
+session is over
+
+
+******Practice troubleshooting with:
+
+kubectl logs nginx-pod
+kubectl describe deploy nginx-deploy
+kubectl get events
+
+*****After editing a yaml file, use kubectl apply -f <file name> to deploy and kubectl delete -f <file name> to delete the resource.
+
+
+//////////////create secret with 3 variables data///////
+kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123
+
+////////////call secret in pod //////////
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    name: webapp-pod
+  name: webapp-pod
+  namespace: default
+spec:
+  containers:
+  - image: kodekloud/simple-webapp-mysql
+    imagePullPolicy: Always
+    name: webapp
+    envFrom:
+    - secretRef:
+        name: db-secret
+
+////////////exec pod and cat file//////////////
+kubectl exec -it webapp bash cat /log/app.log
+
+
+/////////////volume exp in pod ///////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+
+  volumes:
+  - name: log-volume
+    hostPath:
+      # directory location on host
+      path: /var/log/webapp
+      # this field is optional
+      type: Directory
+
+
+//////////////////////persistent volume////////////////
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-log
+spec:
+  capacity:
+    storage: 100Mi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  hostPath:
+   path: /pv/log
+
+/////////////////////pvc ////////////////
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Micontrolplane
+/////////////////////////pvc avec class/////////////
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: local-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-storage
+  resources:
+    requests:
+      storage: 500Mi
+
+***********pv and pvc should have same access mode to let the pvc be bound to pv *************
+
+////////////////////call pvc in pod ///////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    name: nginx
+spec:
+  containers:
+  - name: nginx
+    image: nginx:alpine
+    volumeMounts:
+      - name: local-persistent-storage
+        mountPath: /var/www/html
+  volumes:
+    - name: local-persistent-storage
+      persistentVolumeClaim:
+        claimName: local-pvc
+////////////////////////////storageClass///////////
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: delayed-volume-sc
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+
+
+/////////////////////sign request//////////////////
+apiVersion: certificates.k8s.io/v1
+kind: CertificateSigningRequest
+metadata:
+  name: john
+spec:
+  groups:
+  - system:authenticated
+  request: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURSBSRVFVRVNULS0tLS0KTUlJQ1ZqQ0NBVDRDQVFBd0VURVBNQTBHQTFVRUF3d0dZVzVuWld4aE1JSUJJakFOQmdrcWhraUc5dzBCQVFFRgpBQU9DQVE4QU1JSUJDZ0tDQVFFQTByczhJTHRHdTYxakx2dHhWTTJSVlRWMDNHWlJTWWw0dWluVWo4RElaWjBOCnR2MUZtRVFSd3VoaUZsOFEzcWl0Qm0wMUFSMkNJVXBGd2ZzSjZ4MXF3ckJzVkhZbGlBNVhwRVpZM3ExcGswSDQKM3Z3aGJlK1o2MVNrVHF5SVBYUUwrTWM5T1Nsbm0xb0R2N0NtSkZNMUlMRVI3QTVGZnZKOEdFRjJ6dHBoaUlFMwpub1dtdHNZb3JuT2wzc2lHQ2ZGZzR4Zmd4eW8ybmlneFNVekl1bXNnVm9PM2ttT0x1RVF6cXpkakJ3TFJXbWlECklmMXBMWnoyalVnald4UkhCM1gyWnVVV1d1T09PZnpXM01LaE8ybHEvZi9DdS8wYk83c0x0MCt3U2ZMSU91TFcKcW90blZtRmxMMytqTy82WDNDKzBERHk5aUtwbXJjVDBnWGZLemE1dHJRSURBUUFCb0FBd0RRWUpLb1pJaHZjTgpBUUVMQlFBRGdnRUJBR05WdmVIOGR4ZzNvK21VeVRkbmFjVmQ1N24zSkExdnZEU1JWREkyQTZ1eXN3ZFp1L1BVCkkwZXpZWFV0RVNnSk1IRmQycVVNMjNuNVJsSXJ3R0xuUXFISUh5VStWWHhsdnZsRnpNOVpEWllSTmU3QlJvYXgKQVlEdUI5STZXT3FYbkFvczFqRmxNUG5NbFpqdU5kSGxpT1BjTU1oNndLaTZzZFhpVStHYTJ2RUVLY01jSVUyRgpvU2djUWdMYTk0aEpacGk3ZnNMdm1OQUxoT045UHdNMGM1dVJVejV4T0dGMUtCbWRSeEgvbUNOS2JKYjFRQm1HCkkwYitEUEdaTktXTU0xMzhIQXdoV0tkNjVoVHdYOWl4V3ZHMkh4TG1WQzg0L1BHT0tWQW9FNkpsYWFHdTlQVmkKdjlOSjVaZlZrcXdCd0hKbzZXdk9xVlA3SVFjZmg3d0drWm89Ci0tLS0tRU5EIENFUlRJRklDQVRFIFJFUVVFU1QtLS0tLQo=
+  signerName: kubernetes.io/kube-apiserver-client
+  usages:
+  - client auth
+
+///////////////////////////////////
+clusterRole and clusterRoleBindings are not part of any namespace
+
+
+////////////networkpolicy to allow traffic from pod "internal" to db pod and external pod///////////////
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: internal-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      name: internal
+  policyTypes:
+  - Egress
+  - Ingress
+  ingress:
+    - {}
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          name: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
+
+  - to:
+    - podSelector:
+        matchLabels:
+          name: payroll
+    ports:
+    - protocol: TCP
+      port: 8080
+ 
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+
+
+///////////////////////////deploy weave-net /////////////
+ kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+
+//////////////////////////////////ingress///////////
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: test-ingress
+  namespace: critical-space
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /pay
+        backend:
+          serviceName: pay-service
+          servicePort: 8282
+
+//////////////////////////////////ingress controller//////////
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress-controller
+  namespace: ingress-space
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: nginx-ingress
+  template:
+    metadata:
+      labels:
+        name: nginx-ingress
+    spec:
+      serviceAccountName: ingress-serviceaccount
+      containers:
+        - name: nginx-ingress-controller
+          image: quay.io/kubernetes-ingress-controller/nginx-ingress-controller:0.21.0
+          args:
+            - /nginx-ingress-controller
+            - --configmap=$(POD_NAMESPACE)/nginx-configuration
+            - --default-backend-service=app-space/default-http-backend
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+
+///////////////////////service for ingress//////////
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress
+  namespace: ingress-space
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    nodePort: 30080
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    name: nginx-ingress
+
+
+//////////check services of k8s agents like core-dns/////
+kubectl get svc -n kube-system
+
+////check default service in ingres ///////////////
+kubectl describe ingress --namespace name
+and look for default backend field
+
+/////////identify the interface creted by weave//////
+ip link
+
+/////////default kubeconfig file////////
+/root/.kube/config
+
+///////////identify the network plugin//////////
+ps -aux | grep kubelet
+
+/////////MAC @ assigned to node/////
+arp nodeName
+
+//////////////////////cluserRole/////////
+kubectl get clusterroles -n name
+**************or with command***********
+kubectl expose deployment -n nameNamespace  ingress-controller --type=NodePort --port=80 --name=ingress --dry-run -o yaml > file.yaml
+
+/////////////////////////scale deployment/////////////
+kubectl scale deployment hr-web-app --replicas=2
+//////////////////securitycontext/////////////////
+securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "SYS_TIME"]
+
+
+---------------------
+  securityContext:
+    runAsUser: 1000
+    runAsGroup: 3000
+    fsGroup: 2000
+********************************************
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu-sleeper
+  namespace: default
+spec:
+  securityContext:
+    runAsUser: 1010
+  containers:
+  - command:
+    - sleep
+    - "4800"
+    image: ubuntu
+    name: ubuntu-sleeper
+//////////////////////upgrade image version in a pod///////////////////
+kubectl set image deployment/dep-name nameofcontainer=nameofnewimageversion --record
+
+//////////////////////////////////////create serviceaccount///////////////////////////
+kubectl create serviceaccount name
+///////////////////cluster role and binding///////////////
+kubectl create clusterrole pod-reader --verb=get,list,watch --resource=pods
+kubectl create clusterrolebinding cluster-admin --clusterrole=cluster-admin --user=user1 --user=user2 --group=group1 (or --serviceaccount=default(ns):nameofseracc)
+
+///////////////////clusterrole/////////////////
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: pvviewer-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumes
+  verbs:
+  - list
+///////////////////multi container pod/////////////////
+spec:
+  containers:
+  - image: nginx
+    name: alpha
+    env:
+     - name: name
+       value: alpha
+  - image: busybox
+    name: beta
+    env:
+     - name: name
+       value: beta
+    command: ["sleep","4800"]
+
+//////////////taint node//////////
+kubectl taint node nodename key=val:noshedule
+
+///////////backup etcd on master node /////////////////////////
+ETCDL_API=3 etcdl --endpoints=https://[127.0.0.1]:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key=/etc/kubernetes/pki/etcd/healthcheck-client.key snapshot save path.db
+ 
+////////////lister les plugin network///////
+ls /opt/cni/bin
+
+//////////////executable binary////
+/etc/cni/net.d/10-weave.conflist
+
+///////check if u user can do some action///////
+kubectl get pods --as dev-user
+
+/////////list certificate signingrequests////
+kubectl get csr
+
+/////aapprove certificate/////
+kubectl certificate approve (or deny) name
+
+/////////////check etcd ports////////////
+netstat -anp | grep etcd
+
+///////check networking solution //////
+ls /etc/cni/net.d/  (in conf)
+
+/////////////////list ingress/////
+kubectl get ingress --all-ns
+
+////////////check ip range of services in the cluster/////////
+cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep cluster-ip-range
+
+//////////////check ip range of nodes /////////
+ip addr (the physical ens3)
+
+//////////////check ip range of pods /////////
+kubectl logs weave-pod-name weave -n kube-system (look for : ipalloc-range )
+
+////////////check type of proxy//////////
+kubectl logs name-proxy-pod -n kube-system
+
+/////////////////coredns conffile////////
+/etc/coredns/Corefile
+
+////////////identify the authorization mode//
+kubectl logs name-apiserver-pod -n kube-system (look for: --authorization-mode)
+
+/////////list netpol//////
+kubectl get networkpolicy
+
+/////check the root domain name configured in cluster/////////
+kubectl describe configmap coredns -n kube-system
+
+///////////check number of clusters///////
+kubectl config view
+
+///////////////////root ca certificate location////////////////
+/etc/kubernetes/pki/ca.crt
+to see information : openssl x509 -in /etc/kubernetes/pki/ca.crt -text
+
+///////////////the etcd server certificate//////////////////
+/etc/kubernetes/pki/etcd/server.crt
+
+etcd root certif : /etc/kubernetes/pki/etcd/ca.crt
+
+///how is the corefile passed in the coredns pod/////////
+passed as a configmap
+
+////who is the user who can execute the pod////////
+kubectl exec podName --whoami
+
+/////////////check ports of k8s agents////////////
+netstat -nplt
+
+//////////ip range configured by weave//////////
+ip addr show weave
+
+//////////the key used to authenticate kube-api to the kubelet////////
+/etc/kubernetes/pki/apiserver-kubelet-client.key
+
+
+////////////////prepare node for maintenance///////
+kubectl drain nodename
+
+/////////////mark node as unscheduble/////////////
+kubectl cordon NODEname
+
+/////////////mark node as scheduble/////////////
+kubectl uncordon NODEname
+
+/////////////////////change current context///////////
+kubectl config --kubeconfig=/root/my-kube-config use-context contextName  (or simple command : kubectl config use-context contextName)
+/////////////////links//////////
+https://kubernetes.io/docs/reference/generated/kubectl/kubectl-commands#-em-clusterrolebinding-em-
+https://kubernetes.io/fr/docs/reference/kubectl/cheatsheet/
+
+
+//////////////////ports and container port in pod /////////////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: named-port-pod
+  labels:
+    app: named-port-pod
+spec:
+  containers:
+    - name: echoserver
+      image: gcr.io/google_containers/echoserver:1.4
+      ports:
+      - name: pod-custom-port
+        containerPort: 8080
+
+//////////////////////////delete multiple blocks in "vim" mode///////////////////
+Put your cursor on the top line of the block of text/code to remove
+Press V (That's capital "V" : Shift + v )
+Move your cursor down to the bottom of the block of text/code to remove
+Press d
+////////////////////////////////fix a coredns issue //////////////////////////
+The kube-dns service is not working as expected. The first thing to check is if the service has a valid endpoint? Does it point to the kube-dbs/core-dns ?
+
+Run: kubectl -n kube-system get ep kube-dns
+
+If there are no endpoints for the service, inspect the service and make sure it uses the correct selectors and ports.
+
+Run: kubectl -n kube-system descrive svc kube-dns
+
+Note that the selector used is: k8s-app=core-dns
+
+If you compare this with the label set on the coredns deployment and its pods, you will see that the select should be k8s-app=kube-dns
+
+Modify the kube-dns service and update the selector to k8s-app=kube-dns
+(Easist way is to use the kubectl edit command)
+///////////////////////////////////////////////////dockerfile///////////////
+FROM python:3.6-alpine
+
+RUN pip install flask
+
+COPY . /opt/
+
+EXPOSE 8080
+
+WORKDIR /opt
+
+ENTRYPOINT ["python", "app.py"]
+CMD ["--color", "red"]                 entrypoint+cmd => pyhton app.py --color red
+
+/////////////when he asks you to set command args and not commands in pod definition file, then do this //////////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp-green
+  labels:
+      name: webapp-green
+spec:
+  containers:
+  - name: simple-webapp
+    image: kodekloud/webapp-color
+    args: ["--color", "green"]
+
+///////////////////////////////create secret with 3 variables/////////
+kubectl create secret generic db-secret --from-literal=DB_Host=sql01 --from-literal=DB_User=root --from-literal=DB_Password=password123
+
+//////////////////////// call secret in a pod /////////////
+apiVersion: v1 
+kind: Pod 
+metadata:
+  labels:
+    name: webapp-pod
+  name: webapp-pod
+  namespace: default 
+spec:
+  containers:
+  - image: kodekloud/simple-webapp-mysql
+    imagePullPolicy: Always
+    name: webapp
+    envFrom:
+    - secretRef:
+        name: db-secret
+/////////////////////////////////////approve/deny/delete a CSR/////////////////////
+kubectl certificate approve akshay
+kubectl certificate deny agent-smith
+kubectl delete csr agent-smith
+/////////////////////////////////////////////check haw many clusters //////////////////
+kubectl config view
+
+/////////////////////////check certificate issuer////////////////
+openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text
+
+/////////////////////////roles and rolebindings///////////////
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: blue
+  name: deploy-role
+rules:
+- apiGroups: ["apps", "extensions"]
+  resources: ["deployments"]
+  verbs: ["create"]
+
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: dev-user-deploy-binding
+  namespace: blue
+subjects:
+- kind: User
+  name: dev-user
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: deploy-role
+/////////////////////////////////////////////cluster role permissions for storage ///////////
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: storage-admin
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "watch", "list", "create", "delete"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: michelle-storage-admin
+subjects:
+- kind: User
+  name: michelle
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: storage-admin
+
+///////////////////////////////////////////////////////volume in pod /////////////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+spec:
+  containers:
+  - name: event-simulator
+    image: kodekloud/event-simulator
+    env:
+    - name: LOG_HANDLERS
+      value: file
+    volumeMounts:
+    - mountPath: /log
+      name: log-volume
+
+  volumes:
+  - name: log-volume
+    hostPath:
+      # directory location on host
+      path: /var/log/webapp
+      # this field is optional
+      type: Directory
+
+/////////////////////////////////////////////////persistent volume////////////
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv-log
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 100Mi
+  hostPath:
+    path: /pv/log
+
+/////////////////////////////////////////////////////pvc////////////
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: claim-log-1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Mi
+///////////////////////////////////////////pvc attached to pv ///////////////
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: local-pvc
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: local-storage  /////means it is attached to pv called "local-storage"
+  resources:
+    requests:
+      storage: 500Mi
+
+------------------------------------------------------------check network plugin--------------------------
+ps -aux | grep kubelet 
+
+///////////////////////////the weave pods logs//////////////////////////////
+kubectl logs <weave-pod-name> weave -n kube-system
+
+//////////////////////////////check ip range for services//////////////////
+ cat /etc/kubernetes/manifests/kube-apiserver.yaml | grep cluster-ip-range
+
+///////////////////////check kube-proxy type/////////////
+ kubectl logs kube-proxy-ft6n7 -n kube-system
+
+************************How does this Kubernetes cluster ensure that a kube-proxy pod runs on all nodes in the cluster? using deamonsets*****************
+
+///////////////////////////tolerations in pod////////////////////////
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bee
+spec:
+  containers:
+  - image: nginx
+    name: bee
+  tolerations:
+  - key: spray
+    value: mortein
+    effect: NoSchedule
+    operator: Equal
+/////////////////////////////////////////untaint a node/////////////////////
+kubectl taint nodes master/controlplane node-role.kubernetes.io/master:NoSchedule-
+
+/////////////////////////////node afffinity on deployment//////////
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: red
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      run: nginx
+  template:
+    metadata:
+      labels:
+        run: nginx
+    spec:
+      containers:
+      - image: nginx
+        imagePullPolicy: Always
+        name: nginx
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: node-role.kubernetes.io/master
+                operator: Exists
+
+///////////////////////////////////////////DEAMONSET//////////////////////
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: elasticsearch
+  name: elasticsearch
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
+    spec:
+      containers:
+      - image: k8s.gcr.io/fluentd-elasticsearch:1.20
+        name: fluentd-elasticsearch
+
